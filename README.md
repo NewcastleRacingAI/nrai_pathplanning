@@ -1,111 +1,48 @@
-# NRAI path planning
+# nrai_pathplanning
 
-Newcastle Racing AI module for path planning.
+Newcastle Racing AI path planning module.
 
-To start working on this project, clone this repository.
+It takes the cones detected by perception (blue on the left of the track, yellow on
+the right) and works out a centre line down the middle of the track for the car to
+follow.
 
-```bash
-git clone --recurse-submodules https://github.com/NewcastleRacingAI/nrai_pathplanning.git
+## How it fits in
+
+This module runs as part of the autonomous pipeline and talks to the other modules
+through named pipes (FIFOs). No ROS.
+
+- Reads cones from `/tmp/PERCEPTION_ZedYoloTrack` (written by perception)
+- Writes the path to `/tmp/PATHPLANNING_Path` (read by the controller)
+
+Cones arrive as `[left, right]`, where each side is a list of `(x, z)` points. The
+path is sent back as a list of `(x, z)` points, nearest the car first. An empty list
+means "no drivable path, stop".
+
+## How it works
+
+1. Delaunay triangulation pairs blue and yellow cones across the track and takes the
+   midpoint of each link.
+2. A forward search joins those midpoints into one centre line and ignores stray
+   off-track cones.
+3. If only one cone colour is visible (common in tight corners), it offsets that side
+   inward by half the track width instead of giving up.
+4. The line is smoothed with a spline so the steering target is not jagged.
+
+Step by step:
+
+<img width="1210" height="1210" alt="delaunay_worksheet" src="https://github.com/user-attachments/assets/ca87c3d1-d8ec-4486-be72-3d322c08f1ea" />
+
+## Files
+
+- `nrai_pathplanning/code.py` - the planning algorithm (`plan_path` / `pathfind`).
+- `nrai_pathplanning/node.py` - the FIFO node that reads cones and writes the path.
+
+## Running
+
+Needs Python 3.8 or newer with numpy and scipy.
+
+```
+pip install -r requirements.txt
 cd nrai_pathplanning
-```
-
-## Project structure
-
-```bash
-nrai_pathplanning
-├── resource
-│   └── nrai_pathplanning # File marking the ros package name
-├── src
-│   └── nrai_pathplanning
-│       ├── ros.py      # Ros node 
-│       ├── ...         # Main code
-│       └── __init__.py
-├── test                # Tests
-├── package.xml         # Ros2 package configuration
-├── setup.cfg           # Ros2 python paths
-└── setup.py            # Python configuration
-```
-
-- **To add python dependencies** add them to the `setup.py` file
-- **To add ros2 depedencies** add them to the `package.xml` file
-
-## Setup (standalone)
-
-Despite being part of the **nrai** collection of packages created by the Newcastle Racing AI group, this package can also be used in standalone mode, which **does not** require a ROS installation.
-
-### Install the python package
-
-As a preliminary optional step, consider creating a virtual envirnoment with any tool you commonly use
-
-```bash
-python3 -m venv .venv
-source .venv/bin/activate # On Linux
-.venv/script/activate # On Windows
-```
-
-Then, use pip to install the package locally in edit mode (`-e`)
-
-```
-pip3 install -e .[standalone]
-```
-
-> [!NOTE]  
-> If you are having issues during the installation, consider removing the `-e` flag, or adding the `--user` flag.
-
-All changes you make to the package will be effective immediately, without the need of reinstalling it (provided you are using the `-e` flag).
-
-### Use
-
-When in standalone mode, the package provides a specialized entrypoint
-
-```bash
-python3 -m nrai_pathplanning <path to rosbag>
-```
-
-The entrypoint expects a [rosbag2](https://github.com/ros2/rosbag2) file.
-In simple terms, a recording of the messages exchanged by the topics in a ROS network.
-
-#### List of topics
-
-If no other arguments are provided, the entrypoint will list all the topics in the rosbag
-
-```bash
-python3 -m nrai_pathplanning <path to rosbag>
-```
-
-#### List of messages in a topic
-
-To list all the messages in a specific topic, use the `--list-messages` argument
-
-```bash
-python3 -m nrai_pathplanning <path to rosbag> --topic <topic name> 
-```
-
-Note that this operation may take a while if the rosbag is large, and the output may be very long.
-
-#### Playback the rosbag
-
-To playback the rosbag, use the `--play` argument
-
-```bash
-python3 -m nrai_pathplanning <path to rosbag> --play
-```
-
-All the messages in the rosbag will be processed in order and sent through the `process_msg` function in the `nrai_pathplanning.__main__` file.
-The function will then filter only the topics it is interested in, and call the appropriate processing functions from the `nrai_pathplanning.code` module.
-Then, it is up to you to modify those functions to implement your own path planning algorithms.
-
-```mermaid
-flowchart LR
-bag[Rosbag2 file]
-subgraph nrai_pathplanning
-    direction TB
-    p[process_msg]
-    po[process_pose]
-    im[process_imu]
-end
-
-bag --> p
-p --> po
-p --> im
+python3 node.py
 ```

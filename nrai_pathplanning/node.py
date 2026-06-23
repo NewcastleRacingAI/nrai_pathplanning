@@ -1,41 +1,63 @@
 import os
 import pickle
+import time
+import functools
+print = functools.partial(print, flush=True)
 from code import pathfind
 
-import time
+FIFO_IN = "/tmp/PERCEPTION_ZedYoloTrack"
+FIFO_OUT = "/tmp/PATHPLANNING_Path"
 
-fifo_in = '/tmp/PERCEPTION_ZedYoloTrack'
-fifo_out = '/tmp/PATHPLANNING_Path'
-
-def main(args=None):
-
-    # Make FIFO output
-    os.mkfifo(fifo_out, 0o600)
+# creates the pipe so that it removes any leftover one first so it does not crash on a second run
+def _ensure_fifo(path):
+    if os.path.exists(path):
+        os.remove(path)
+    os.mkfifo(path, 0o600)
     
+# reads cones from the perception pipe to run pathfind and
+# writes the path to the controller pipe and loops forever
+def main(args=None):
+    _ensure_fifo(FIFO_OUT)
+    print(
+        f"NRAI_PATHPLANNING: start FIFO_IN={FIFO_IN}, "
+        f"FIFO_OUT={FIFO_OUT}"
+    )
     while True:
         try:
-            # FIFO input
-            fd_in = os.open(fifo_in, os.O_RDONLY)
-            with open(fd_in, "rb") as file:
-                print(f"NRAI_PATHPLANNING: Successfully opened {fifo_in}.")
-                while True:
-                    cones = pickle.load(file)
-                    path = pathfind(cones)
-                    
-                    try:
-                        fd_out = os.open(fifo_out, os.O_WRONLY)
-                        with open(fd_out, "wb") as fifo:
-                            pickle.dump(path, fifo)
-                    except FileNotFoundError:
-                        print(f"NRAI_PATHPLANNING: Could not access FIFO {fifo_out}. Likely not yet configured.")
-                    except BrokenPipeError:
-                        print(f"NRAI_PATHPLANNING: FIFO {fifo_out} terminated")
-                        
+            print(f"NRAI_PATHPLANNING: opening {FIFO_IN}")
+            fd_in = os.open(FIFO_IN, os.O_RDONLY)
         except FileNotFoundError:
-            print(f"NRAI_PATHPLANNING: Could not access FIFO {fifo_in}. Likely not yet configured.")
+            print(f"NRAI_PATHPLANNING: retry")
             time.sleep(0.5)
-        except BrokenPipeError:
-            print(f"NRAI_PATHPLANNING: FIFO {fifo_in} terminated")
-
+            continue
+        with open(fd_in, "rb") as fin:
+            print(f"NRAI_PATHPLANNING: opened {FIFO_IN}.")
+            while True:
+                try:
+                    cones = pickle.load(fin)
+                except EOFError:
+                    print("NRAI_PATHPLANNING: input pipe closed")
+                    break
+                try:
+                    length = len(cones)
+                except Exception:
+                    length = "N/A"
+                print(f"NRAI_PATHPLANNING: received cones type={type(cones).__name__} len={length}")
+                path = pathfind(cones)
+                try:
+                    plen = len(path)
+                except Exception:
+                    plen = "N/A"
+                print(f"NRAI_PATHPLANNING: computed path type={type(path).__name__} len={plen}")
+                try:
+                    fd_out = os.open(FIFO_OUT, os.O_WRONLY)
+                    with open(fd_out, "wb") as fout:
+                        pickle.dump(path, fout)
+                        print(f"NRAI_PATHPLANNING: wrote path to {FIFO_OUT}")
+                except FileNotFoundError:
+                    print(f"NRAI_PATHPLANNING: {FIFO_OUT} not configured yet")
+                except BrokenPipeError:
+                    print(f"NRAI_PATHPLANNING: {FIFO_OUT} reader went away")
+                    
 if __name__ == "__main__":
     main()
