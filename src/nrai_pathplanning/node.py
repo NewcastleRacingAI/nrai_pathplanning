@@ -1,6 +1,6 @@
 import os
 import pickle
-from code import pathfind
+from .code import pathfind
 
 import time
 
