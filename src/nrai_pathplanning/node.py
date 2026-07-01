@@ -1,11 +1,13 @@
-import os
-import pickle
 from .code import pathfind
-
-import time
+import argparse
+from multiprocessing import Queue
+import logging
 
 def main(args: argparse.Namespace):
     topics: dict[str, Queue] = args.topics or {}
+    logging.basicConfig(format=args.logger_format or "", level=args.verbosity or logging.INFO)
+    logger = logging.getLogger()
+
 
     # --- Set up Code ---
     if args.planning_topic not in topics:
@@ -17,6 +19,8 @@ def main(args: argparse.Namespace):
     while True:
         cones = planning_queue.get()
         path = pathfind(cones)
+
+        logger.info("Cones: %s => Path %s", cones, path)
 
         if control_queue is not None:
             control_queue.put(path)
