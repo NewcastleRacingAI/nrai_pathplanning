@@ -19,7 +19,7 @@ def main(args: argparse.Namespace):
     
     while True:
         while planning_queue.qsize() > 1:
-            planning_queue.get()
+            planning_queue.get_nowait()
         cones = planning_queue.get()
         logger.debug("Received %s", cones)
         path = pathfind(cones)
