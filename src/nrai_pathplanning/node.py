@@ -5,8 +5,9 @@ import logging
 
 def main(args: argparse.Namespace):
     topics: dict[str, Queue] = args.topics or {}
-    logging.basicConfig(format=args.logger_format or "", level=args.verbosity or logging.INFO)
+    logging.basicConfig(format=args.logger_format or "", level=args.actual_verbosity() if args.actual_verbosity else logging.INFO)
     logger = logging.getLogger()
+    logger.info("Initializing...")
 
 
     # --- Set up Code ---
@@ -17,15 +18,17 @@ def main(args: argparse.Namespace):
     control_queue = topics.get(args.control_topic, None)
     
     while True:
-        while planning_queue.qsize()>1:
+        while planning_queue.qsize() > 1:
             planning_queue.get()
         cones = planning_queue.get()
+        logger.debug("Received %s", cones)
         path = pathfind(cones)
 
         #logger.info("Cones: %s => Path %s", cones, path)
 
         if control_queue is not None:
             control_queue.put(path)
+            logger.debug("Sent %s", path)
 
 if __name__ == "__main__":
     main()
