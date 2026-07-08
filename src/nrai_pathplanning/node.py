@@ -21,7 +21,7 @@ def main(args: argparse.Namespace):
         logger.debug("Starting loop")
         while planning_queue.qsize() > 1:
             logger.debug("Emptying queue")
-            planning_queue.get_nowait()
+            planning_queue.get()
         cones = planning_queue.get()
         logger.debug("Received %s", cones)
         path = pathfind(cones)
