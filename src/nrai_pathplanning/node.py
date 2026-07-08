@@ -18,7 +18,9 @@ def main(args: argparse.Namespace):
     control_queue = topics.get(args.control_topic, None)
     
     while True:
+        logger.debug("Starting loop")
         while planning_queue.qsize() > 1:
+            logger.debug("Emptying queue")
             planning_queue.get_nowait()
         cones = planning_queue.get()
         logger.debug("Received %s", cones)
