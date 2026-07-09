@@ -16,7 +16,7 @@ def main(args: argparse.Namespace):
 
     planning_queue = topics[args.planning_topic]
     control_queue = topics.get(args.control_topic, None)
-    
+
     while True:
         logger.debug("Starting loop")
         while planning_queue.qsize() > 1:
@@ -25,8 +25,6 @@ def main(args: argparse.Namespace):
         cones = planning_queue.get()
         logger.debug("Received %s", cones)
         path = pathfind(cones)
-
-        #logger.info("Cones: %s => Path %s", cones, path)
 
         if control_queue is not None:
             control_queue.put(path)
