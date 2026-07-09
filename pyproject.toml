@@ -10,3 +10,5 @@ dependencies = [
     "numpy>=2.5.0",
     "scipy>=1.18.0",
 ]
+[project.scripts]
+nrai_pathplanning = "nrai_pathplanning:main"
